@@ -1,0 +1,7 @@
+customtkinter==5.2.0
+matplotlib==3.6.2
+numpy
+Pillow==9.0.1
+scikit-image
+scipy==1.8
+tifffile==2022.8.12
