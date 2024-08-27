@@ -84,13 +84,13 @@ class Application(ctk.CTk):
         self.file_status = FileStatusComponent(self)
         self.file_status.pack(pady=(20, 0), padx=20, fill=tk.X)
         self.file_currently_processing = None
-
+        self.file_output = "./output" #default save location output folder in working dir
         self.main_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=self.fg_color)
         self.status_banner_frame = ctk.CTkFrame(self.main_frame, corner_radius=15, fg_color='#FF0000')
         self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
         # self.status_banner_frame.pack(pady=0, padx=0, fill="x", expand=True)
 
-        #default parameters for TDA image size
+        #default parameters for Luikart TDA image size
         self.xscale = 0.3107 #voxel size in um 
         self.yscale = 0.3107
         self.zstep = 2
@@ -102,7 +102,7 @@ class Application(ctk.CTk):
         self.create_widgets()
 
     def create_widgets(self):
-        # Frame for the load directory button
+        # Frame for the buttons
         buttons_frame = ctk.CTkFrame(self.main_frame, corner_radius=15, fg_color=self.fg_color)
         buttons_frame.pack(pady=20)
         buttons_frame.place(relx=0.5, rely=0.5, anchor='center')
@@ -111,19 +111,19 @@ class Application(ctk.CTk):
         scale_frame = ctk.CTkFrame(self.main_frame, corner_radius=15, fg_color=self.fg_color)
         scale_frame.place(relx=0.5, rely=0.62, anchor='center')
 
-        self.title_label = ctk.CTkLabel(self.main_frame, text="TDA Image Processor", font=("Arial", 30))
-        self.title_label.place(relx=0.5, rely=0.32, anchor='center')  # Adjust this value so it's slightly above center
+        self.title_label = ctk.CTkLabel(self.main_frame, text="TDA Image Processor", font=("Arial", 35))
+        self.title_label.place(relx=0.5, rely=0.36, anchor='center')  # Adjust this value so it's slightly above center
 
         self.instructions_label = ctk.CTkLabel(self.main_frame, 
-                                        text="Begin by choosing either an image directory or a single image.", 
+                                        text="Begin by choosing either an image directory or a single image to process.", 
                                         wraplength=300)
-        self.instructions_label.place(relx=0.5, rely=0.42, anchor='center')  # Adjust this value so it's below the title label
+        self.instructions_label.place(relx=0.5, rely=0.44, anchor='center')  # Adjust this value so it's below the title label
         
-        self.scaling_label = ctk.CTkLabel(self.main_frame, text="Or specify scaling for your image/s here:", wraplength=300)
-        self.scaling_label.place(relx=0.5, rely=0.57, anchor='center')  # Adjust this value so it's slightly above center
+        self.scaling_label = ctk.CTkLabel(self.main_frame, text="Specify scaling for your image/s before processing here:", wraplength=300)
+        self.scaling_label.place(relx=0.5, rely=0.56, anchor='center')  # Adjust this value so it's slightly above center
         
         # Place the 'Load Directory' button to the left side of the frame
-        self.load_button = ctk.CTkButton(buttons_frame, text="Load Directory", command=self.load_directory)
+        self.load_button = ctk.CTkButton(buttons_frame, text="Directory", command=self.load_directory)
         self.load_button.pack(side="left")
 
         # Add an 'or' label in between the buttons
@@ -131,12 +131,12 @@ class Application(ctk.CTk):
         self.or_label.pack(side="left", padx=10)  # padx adds some space on both sides of the label
 
         # Place the 'Load Image' button to the right side of the or_label (but still to the left side of the frame)
-        self.load_image_button = ctk.CTkButton(buttons_frame, text="Load Image", command=self.load_image)
+        self.load_image_button = ctk.CTkButton(buttons_frame, text="Single Image", command=self.load_image)
         self.load_image_button.pack(pady=10, side="left")
 
         #adding a button to specify scaling and metadata
         self.load_scale_button = ctk.CTkButton(scale_frame, text = "Specify Scaling", command = self.specify_scaling)
-        self.load_scale_button.pack(side="top") #place the button below the two other buttons
+        self.load_scale_button.pack(side="top", pady=15) #place the button below the two other buttons
 
         # add a credit label to the bottom of the frame
         credit_label = ctk.CTkLabel(self.main_frame, text="Copyright: Penelope L. Tir, John L. McCambridge, 2024", font=("Arial", 10), text_color=("black", "#606363"))
@@ -216,24 +216,27 @@ class Application(ctk.CTk):
         file_path = filedialog.askopenfilename()
         print("Selected file: ", file_path)
 
-        self.to_process.append(file_path)
+        #specify the output folder
+        self.file_output = filedialog.askdirectory(title="Save Directory")
+        print("Output directory: ", self.file_output)
 
+        #adds the file and processes it
+        self.to_process.append(file_path)
         self.start_processing()
         self.toggle_buttons()
 
     def load_directory(self):     
         self.file_status.set_default()   
-        directory = filedialog.askdirectory() # '/Users/johnmacdonald/Downloads/lsm-alignment-tool/easy' # filedialog.askdirectory()
+        directory = filedialog.askdirectory(title="Load Directory") 
         print("Selected directory: ", directory)
 
+        #add lsm files to the to_process list
         for file in glob.glob(directory + "/*.lsm"):
             self.to_process.append(file)
 
-        # print("To Process: " + str(self.to_process))
-        # time.sleep(10)
-        # self.remaining_text = tk.StringVar()
-        # self.remaining_label = ctk.CTkLabel(self.main_frame, textvariable=self.remaining_text, font=("Arial", 16))
-        # self.remaining_label.pack(pady=40)
+        #specify the output folder
+        self.file_output = filedialog.askdirectory(title="Save Directory")
+        print("Output directory: ", self.file_output)
 
         self.start_processing()
         self.toggle_buttons()
@@ -387,6 +390,7 @@ class Application(ctk.CTk):
 
         self.last_delta = time.time()
     # np = 1.22.0
+        
     def process_image(self, channel, file_path):
         # bug here w.r.t the channel, redeclaring the array
         print("Processing channel {}".format(channel))
@@ -424,8 +428,11 @@ class Application(ctk.CTk):
         image_metadata = {'axes':'ZCYX', 'mode':'color', 'unit': 'um', 'spacing': spacing}
         
         print("Saving: " + self.file_currently_processing)
-        imwrite(f'./output/{self.file_currently_processing.split("/")[-1]}_DESPEC.tiff', tiff, resolution=(dpi, dpi), imagej = True, metadata=image_metadata)
-        
+
+        #saving to correct folder here
+        #imwrite(f'./output/{self.file_currently_processing.split("/")[-1]}_DESPEC.tiff', tiff, resolution=(dpi, dpi), imagej = True, metadata=image_metadata)
+        filename = f'{self.file_currently_processing.split("/")[-1][:-4]}_PROCESSED.tiff' #processed filename
+        imwrite(f'{self.file_output}/{filename}', tiff, resolution=(dpi, dpi), imagej = True, metadata=image_metadata)
         self.processed_channels = {}
         self.file_status.update_completed_files()
 
