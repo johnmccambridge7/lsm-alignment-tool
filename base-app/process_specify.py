@@ -15,6 +15,15 @@ import customtkinter as ctk
 import os
 import glob
 
+import platform
+from tkinterdnd2 import *
+try:
+    from Tkinter import *
+    from ScrolledText import ScrolledText
+except ImportError:
+    from tkinter import *
+    from tkinter.scrolledtext import ScrolledText
+
 class FileStatusComponent(ctk.CTkFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -85,6 +94,7 @@ class Application(ctk.CTk):
         self.file_status.pack(pady=(20, 0), padx=20, fill=tk.X)
         self.file_currently_processing = None
         self.file_output = "./output" #default save location output folder in working dir
+        self.accepted_types = [".lsm", ".czi"] #add or remove here to change settings for whole
         self.main_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=self.fg_color)
         self.status_banner_frame = ctk.CTkFrame(self.main_frame, corner_radius=15, fg_color='#FF0000')
         self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
@@ -115,7 +125,7 @@ class Application(ctk.CTk):
         self.title_label.place(relx=0.5, rely=0.36, anchor='center')  # Adjust this value so it's slightly above center
 
         self.instructions_label = ctk.CTkLabel(self.main_frame, 
-                                        text="Begin by choosing either an image directory or a single image to process.", 
+                                        text="Begin by choosing either an image directory or elect to drag and drop files.", 
                                         wraplength=300)
         self.instructions_label.place(relx=0.5, rely=0.44, anchor='center')  # Adjust this value so it's below the title label
         
@@ -131,7 +141,7 @@ class Application(ctk.CTk):
         self.or_label.pack(side="left", padx=10)  # padx adds some space on both sides of the label
 
         # Place the 'Load Image' button to the right side of the or_label (but still to the left side of the frame)
-        self.load_image_button = ctk.CTkButton(buttons_frame, text="Single Image", command=self.load_image)
+        self.load_image_button = ctk.CTkButton(buttons_frame, text="Drag and Drop", command=self.drag_and_drop)
         self.load_image_button.pack(pady=10, side="left")
 
         #adding a button to specify scaling and metadata
@@ -142,6 +152,12 @@ class Application(ctk.CTk):
         credit_label = ctk.CTkLabel(self.main_frame, text="Copyright: Penelope L. Tir, John L. McCambridge, 2024", font=("Arial", 10), text_color=("black", "#606363"))
         credit_label.place(relx=0.5, rely=0.95, anchor='center')
 
+        #add a quit button for the entire program
+        self.quit_frame = ctk.CTkFrame(self.main_frame, corner_radius=15, fg_color=self.fg_color)
+        self.quit_frame.place(relx=0.5, rely=0.9, anchor = "center")
+        self.quit_button = ctk.CTkButton(self.quit_frame, text = "Quit", command =self.quit)
+        self.quit_button.pack(side="left", padx=5, pady=5)  # Optionally adjust padding
+
         self.is_shown = True
 
     def toggle_buttons(self):
@@ -151,7 +167,7 @@ class Application(ctk.CTk):
             self.load_image_button.pack_forget()
             self.title_label.place_forget()
             self.instructions_label.place_forget()
-
+            self.quit_button.pack_forget()
             self.is_shown = False
         else:
             self.load_button.pack(side="left")
@@ -159,6 +175,7 @@ class Application(ctk.CTk):
             self.load_image_button.pack(side="left")
             self.title_label.place(relx=0.5, rely=0.35, anchor='center')
             self.instructions_label.place(relx=0.5, rely=0.42, anchor='center')
+            self.quit_button.pack(side="left", padx=5, pady=5)  # Optionally adjust padding
             self.is_shown = True
 
     def run_process(self, file_path):
@@ -231,8 +248,10 @@ class Application(ctk.CTk):
         print("Selected directory: ", directory)
 
         #add lsm files to the to_process list
-        for file in glob.glob(directory + "/*.lsm"):
-            self.to_process.append(file)
+        #for type in self.accepted_types:
+        #    for file in glob.glob(directory + "/*" + type):
+        #        self.to_process.append(file)
+        self.to_process = [file for file_type in self.accepted_types for file in glob.glob(os.path.join(directory, f"*{file_type}"))]
 
         #specify the output folder
         self.file_output = filedialog.askdirectory(title="Save Directory")
@@ -241,12 +260,60 @@ class Application(ctk.CTk):
         self.start_processing()
         self.toggle_buttons()
 
+    def drag_and_drop(self):
+        #popup for the drag and drop window
+        self.dnd_window = TkinterDnD.Tk()
+        self.dnd_window.title('Drag and Drop Files')
+        dnd_label = Label(self.dnd_window, text='Drop files here:').grid(row=0, column=0, padx=10, pady=5)
+
+        #creating the listbox to store the dropped files
+        listbox = Listbox(self.dnd_window, name='dnd_demo_listbox',
+                            selectmode='extended', width=40, height=20)
+        listbox.grid(row=0, column=0, padx=5, pady=5, sticky='news')
+
+        #button to close window and process all the files dropped
+        buttonbox = Frame(self.dnd_window)
+        buttonbox.grid(row=1, column=0, columnspan=2, pady=5)
+        Button(buttonbox, text='Process', command=self.end_dnd).pack(side=LEFT, padx=5)
+        
+        def drop(event):
+            if event.data:
+                if event.widget == listbox:
+                    files = listbox.tk.splitlist(event.data)
+                    for f in files:
+                        if os.path.exists(f):
+                            print('Dropped file: "%s"' % f)
+                            _, extension = os.path.splitext(f)  # Extract the file extension
+                            extension.lower() #to standardize the filetype
+                            if extension in self.accepted_types:
+                                listbox.insert('end', f)
+                                self.to_process.append(f) #adds all the filenames in
+                            else:
+                                print(f"file {f} was not of the appropriate type")
+                        else:
+                            print('Not dropping file "%s": file does not exist.' % f)
+                else:
+                    print('Error: reported event.widget not known')
+            return event.action
+    
+        # now make the Listbox a drop target
+        listbox.drop_target_register(DND_FILES, DND_TEXT)
+        listbox.dnd_bind('<<Drop>>', drop)
+    
+    def end_dnd(self):
+        self.dnd_window.destroy() #closes the window popup
+        #specify the output folder
+        self.file_output = filedialog.askdirectory(title="Save Directory")
+        print("Output directory: ", self.file_output)
+        self.start_processing()
+        self.toggle_buttons()
+    
     def specify_scaling(self):
         #creation of the scaling window
         self.scaling_window = ctk.CTk()
         self.scaling_window.title("Scaling Suite")
         self.scaling_label = ctk.CTkLabel(self.scaling_window, text = "Microscope and Image Settings", font=("Arial", 18))
-        self.scaling_label.pack(padx = 10, pady = 20)
+        self.scaling_label.pack(padx=10, pady=20)
 
         #frames to hold all the buttons in a column
         x_frame = ctk.CTkFrame(self.scaling_window, corner_radius=15, fg_color=self.fg_color)
